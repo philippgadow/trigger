@@ -12,8 +12,19 @@
 #include <TChain.h>
 #include <TFile.h>
 #include <TSelector.h>
-
+#include <vector>
 // Header file for the classes stored in the TTree if any.
+
+struct Threshold {
+   float eta_low;
+   float eta_high;
+   float phi_low;
+   float phi_high;
+   int is_small_sector;
+   float threshold;
+   float effciency;
+
+}
 
 class rate_study : public TSelector {
 public :
@@ -162,9 +173,11 @@ public :
    TH1F* h_eta;
    TH1F* h_eta_sagitta;
    TH1F* h_eta_beta;
+   TH1F* h_eta_combined;
    TH1F* h_eta_standalone;
    TH1F* h_eta_offline;
 
+   std::vector<Threshold> thresholds_standalone;
    ClassDef(rate_study,0);
 };
 

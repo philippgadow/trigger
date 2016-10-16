@@ -56,6 +56,7 @@ void rate_study::SlaveBegin(TTree * /*tree*/)
    h_eta = new TH1F("h_eta", "h_eta", 84, -2.52, 2.52);
    h_eta_sagitta = new TH1F("h_eta_sagitta", "h_eta_sagitta", 84, -2.52, 2.52);
    h_eta_beta = new TH1F("h_eta_beta", "h_eta_beta", 84, -2.52, 2.52);
+   h_eta_combined = new TH1F("h_eta_combined", "h_eta_combined", 84, -2.52, 2.52);
    h_eta_standalone = new TH1F("h_eta_standalone", "h_eta_standalone", 84, -2.52, 2.52);
    h_eta_offline = new TH1F("h_eta_offline", "h_eta", 84, -2.52, 2.52);
 }
