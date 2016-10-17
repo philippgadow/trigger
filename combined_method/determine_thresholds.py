@@ -9,21 +9,21 @@ f = ROOT.TFile('rate_study.root')
 t = f.Get('ntuple')
 
 # create threshold file
-output = open('L1MU20_thresholds_combined_regions.txt', 'w')
+output = open('L1MU20_thresholds_combined.txt', 'w')
 
 # define histograms
 h_cut = {}
 h_all = {}
 thresholds_regions = {}
 
-eta_boundary = [(0.00, 0.80),
-                (0.80, 1.05),
-                (1.05, 1.10), (1.10, 1.15), (1.15, 1.20), (1.20, 1.25),
-                (1.25, 1.30),
-                (1.30, 1.40), (1.40, 1.50), (1.50, 1.60), (1.60, 1.70),
-                (1.70, 1.80), (1.80, 1.90), (1.90, 2.00), (2.00, 2.10),
-                (2.10, 2.20), (2.20, 2.30), (2.30, 2.40)]
-#phi_boundary = [(-3.60, 3.60)]
+# eta_boundary = [(0.00, 1.05),
+#                 (1.05, 1.30),
+#                 (1.30, 1.40), (1.40, 1.50), (1.50, 1.60), (1.60, 1.70),
+#                 (1.70, 1.80), (1.80, 1.90), (1.90, 2.00), (2.00, 2.10),
+#                 (2.10, 2.20), (2.20, 2.30), (2.30, 2.40)]
+eta_boundary = [(0.00, 1.05), (1.05, 1.40),
+                (1.40, 1.60), (1.60, 2.00), (2.00, 2.40)]
+# phi_boundary = [(-3.60, 3.60)]
 phi_boundary = [(-0.20, 3.60), (-3.60, -2.6), (-2.60, -2.385), (-2.385, -2.20),
                 (-2.20, -1.80), (-1.80, -1.40), (-1.40, -1.15), (-1.15, -0.20)]
 chamber_size = [0, 1]
@@ -48,6 +48,7 @@ for b in eta_boundary:
     for p in phi_boundary:
         for c in chamber_size:
             print b, p, c
+            second_loop = True
             # going down from 20 GeV to 5 GeV in steps of 0.5 GeV 
             for pt_threshold in xrange(200, 50, -5):
                 pt_threshold *= 0.1
@@ -60,8 +61,6 @@ for b in eta_boundary:
                         pt_rec = 99
                     eta = abs(event.eta)
                     phi = event.phi
-                    # eta = abs(event.roi_eta)
-                    # phi = event.roi_phi
                     sector = event.is_small_sector
                     if eta > b[0] and eta < b[1] and phi > p[0] and \
                     phi < p[1] and sector == c:
@@ -71,13 +70,20 @@ for b in eta_boundary:
                 efficiency = calc_efficiency(h_cut[(b, p, c)], h_all[(b, p, c)])
 
                 print pt_threshold, efficiency
+                if pt_threshold == 5.5:
+                    second_loop = False
                 if efficiency < 0:
+                    second_loop = False
                     break
-                if efficiency >= 0.945:
+                if efficiency >= 0.94:
                     break
+
             new_range = int(pt_threshold*100)+50
             efficiency = 0
             for pt_threshold in xrange(new_range, 500, -2):
+                if (not second_loop):
+                    pt_threshold *= 0.01
+                    break
                 pt_threshold *= 0.01
                 event_counter = 0
                 h_cut[(b, p, c)].Reset()
@@ -99,7 +105,7 @@ for b in eta_boundary:
                 print pt_threshold, efficiency
                 if efficiency < 0:
                     break
-                if efficiency >= 0.9449:
+                if efficiency >= 0.94:
                     break
             print b, p, c
             print pt_threshold, efficiency

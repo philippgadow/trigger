@@ -29,9 +29,14 @@
 #include <TFile.h>
 #include <TStyle.h>
 
+#include <fstream>
+
 // include pt parametrisations
-#import "pt_on_sagitta_regions.cxx"
-#import "pt_on_sagitta_stations.cxx"
+#include "pt_on_sagitta_regions.cxx"
+#include "pt_on_sagitta_stations.cxx"
+#include "pt_on_beta_oi_regions.cxx"
+#include "pt_on_beta_om_regions.cxx"
+#include "pt_on_beta_mi_regions.cxx"
 
 void rate_study::Begin(TTree * /*tree*/)
 {
@@ -51,14 +56,62 @@ void rate_study::SlaveBegin(TTree * /*tree*/)
 
    TString option = GetOption();
 
+   // read thresholds from file
+   ifstream input_file_standalone("L1MU20_thresholds_standalone.txt");
+   ifstream input_file_combined("L1MU20_thresholds_combined.txt");
+   ifstream input_file_regions("L1MU20_thresholds_regions.txt");
+   ifstream input_file_stations("L1MU20_thresholds_stations.txt");
+
+
+   // loop over file and fill structures in vector
+   float eta_low, eta_high, phi_low, phi_high;
+   int is_small_sector;
+   float threshold, efficiency;
+   int segment_id, eta_inner, eta_middle, eta_outer;
+
+   while (input_file_standalone >> eta_low >> eta_high >> phi_low >> phi_high\
+                                >> is_small_sector >> threshold >> efficiency){
+      thresholds_standalone.push_back(Threshold{eta_low, eta_high, \
+                                                phi_low, phi_high, \
+                                                is_small_sector, \
+                                                threshold, efficiency});
+   }
+
+   while (input_file_regions >> eta_low >> eta_high >> phi_low >> phi_high\
+                                >> is_small_sector >> threshold >> efficiency){
+      thresholds_regions.push_back(Threshold{eta_low, eta_high, \
+                                                phi_low, phi_high, \
+                                                is_small_sector, \
+                                                threshold, efficiency});
+   }
+
+   while (input_file_combined >> eta_low >> eta_high >> phi_low >> phi_high\
+                                >> is_small_sector >> threshold >> efficiency){
+      thresholds_combined.push_back(Threshold{eta_low, eta_high, \
+                                                phi_low, phi_high, \
+                                                is_small_sector, \
+                                                threshold, efficiency});
+   }
+
+
+   while (input_file_stations >> segment_id >> eta_inner >> eta_middle >> eta_outer >> threshold >> efficiency){
+      thresholds_stations.push_back(Threshold_station{segment_id, eta_inner, \
+                                                eta_middle, eta_outer,\
+                                                threshold, efficiency});
+   }
+
    output_file = new TFile("rate_study.root", "RECREATE");
+
+   ntuple = new TNtuple("ntuple", "ntuple", "pt:eta:phi:is_small_sector:roi_eta:roi_phi:pt_on");
 
    h_eta = new TH1F("h_eta", "h_eta", 84, -2.52, 2.52);
    h_eta_sagitta = new TH1F("h_eta_sagitta", "h_eta_sagitta", 84, -2.52, 2.52);
    h_eta_beta = new TH1F("h_eta_beta", "h_eta_beta", 84, -2.52, 2.52);
    h_eta_combined = new TH1F("h_eta_combined", "h_eta_combined", 84, -2.52, 2.52);
    h_eta_standalone = new TH1F("h_eta_standalone", "h_eta_standalone", 84, -2.52, 2.52);
-   h_eta_offline = new TH1F("h_eta_offline", "h_eta", 84, -2.52, 2.52);
+   h_eta_offline = new TH1F("h_eta_offline", "h_eta_offline", 84, -2.52, 2.52);
+
+   h_pt_on_pt_off = new TH2F("h_pt_on_pt_off", ";p_{T}^{CB} [GeV];p_{T}^{on} [GeV]", 1000,0,100,1000,0,100);
 }
 
 Bool_t rate_study::Process(Long64_t entry)
@@ -89,12 +142,113 @@ Bool_t rate_study::Process(Long64_t entry)
    // with pt < 100 GeV
 
    // fill all muons after phase-1 trigger requirements
-   h_eta->Fill(eta);
+   h_eta->Fill(trig_l1_roi_eta);
+
+   // fill muons fulfilling the stand-alone requirement
+   for(Threshold threshold : thresholds_standalone){
+      if(abs(eta) > threshold.eta_low && abs(eta) < threshold.eta_high && \
+         phi > threshold.phi_low && phi < threshold.phi_high && \
+         is_small_sector == threshold.is_small_sector){
+         if(sa_pt > threshold.threshold){
+            h_eta_standalone->Fill(trig_l1_roi_eta);
+            break;
+         }
+      }
+   }
 
    // fill all offline muons with pt > 20 GeV
    if(pt > 20.){
-      h_eta_offline->Fill(eta);
+      h_eta_offline->Fill(trig_l1_roi_eta);
    }
+
+   // fill muons fulfilling the sagitta requirement
+
+   // fill muons fulfilling the beta requirement
+
+   // fill muons fulfilling the combined requirement
+   double pt_sagitta_stations = pt_on_sagitta_stations(sagitta, eta, phi_mod, seg_combination_id, eta_index_inner, eta_index_middle, eta_index_outer, phi_index);
+   double pt_sagitta_regions = pt_on_sagitta_regions(sagitta, eta, phi_mod, is_barrel, is_transition_region, is_small_sector, chamber_type_inner);
+
+   double pt_beta_oi_regions = pt_on_beta_oi_regions(beta_outer, beta_inner, eta, phi_mod, is_barrel, is_transition_region, is_small_sector, chamber_type_inner);
+   double pt_beta_om_regions = pt_on_beta_om_regions(beta_outer, beta_middle, eta, phi_mod, is_barrel, is_transition_region, is_small_sector, chamber_type_inner);
+   double pt_beta_mi_regions = pt_on_beta_mi_regions(beta_middle, beta_inner, eta, phi_mod, is_barrel, is_transition_region, is_small_sector, chamber_type_inner);
+   
+
+   float pt_rec = 999;
+
+   // first try angle method which works almost everywhere
+   // the methods should be more precise in this order mi < om < oi
+   // because of independence of special type inner chambers and the length of the lever arm 
+   //if(abs(phi_mod) > 0){ // check if there is a segment
+      if(pt_beta_mi_regions > 0 && pt_beta_mi_regions < 999){
+         pt_rec = pt_beta_mi_regions;
+      }
+      if(is_barrel && pt_beta_om_regions > 0 && pt_beta_om_regions < 999){
+         pt_rec = pt_beta_om_regions;
+      }
+      if(is_barrel && pt_beta_oi_regions > 10 && pt_beta_oi_regions < 100){
+         pt_rec = pt_beta_oi_regions;
+      }
+   //}
+
+   // if possible, change result from angle method by sagitta method
+   // only apply sagitta method in regions where magnetic field is homogeneous
+   if(abs(sagitta) > 0 && (abs(eta) < 1.4 || abs(eta) > 1.6)){
+      if(pt_sagitta_regions < 100){
+         pt_rec = pt_sagitta_regions;
+      }
+
+      if(seg_combination_id > 0 && pt_sagitta_stations < 500){ // was 200
+         pt_rec = pt_sagitta_stations;
+      }
+   }
+
+   h_pt_on_pt_off->Fill(pt, pt_rec);
+   ntuple->Fill(pt, eta, phi, is_small_sector, trig_l1_roi_eta, trig_l1_roi_phi, pt_rec);
+
+
+   // check pt_rec against sagitta threshold
+   if(abs(sagitta) > 0 && (abs(eta) < 1.4 || abs(eta) > 1.6) && seg_combination_id > 0){
+      for(Threshold_station threshold : thresholds_stations){
+         if(seg_combination_id == threshold.segment_id && \
+            eta_index_inner == threshold.eta_inner && \
+            eta_index_middle == threshold.eta_middle && \
+            eta_index_outer == threshold.eta_outer){
+      
+            if(pt_sagitta_stations > threshold.threshold){
+               h_eta_combined->Fill(trig_l1_roi_eta);
+               break;
+            }
+         }
+      }
+   }
+   else if(abs(sagitta) > 0 && (abs(eta) < 1.4 || abs(eta) > 1.6)){
+      for(Threshold threshold : thresholds_regions){
+         if(abs(eta) > threshold.eta_low && abs(eta) < threshold.eta_high && \
+            phi > threshold.phi_low && phi < threshold.phi_high && \
+            is_small_sector == threshold.is_small_sector){
+      
+            if(pt_sagitta_regions > threshold.threshold){
+               h_eta_combined->Fill(trig_l1_roi_eta);
+               break;
+            }
+         }
+      }
+   }
+   else{
+      // check pt_rec against threshold
+      for(Threshold threshold : thresholds_combined){
+         if(abs(eta) > threshold.eta_low && abs(eta) < threshold.eta_high && \
+            phi > threshold.phi_low && phi < threshold.phi_high && \
+            is_small_sector == threshold.is_small_sector){
+            if(pt_rec > threshold.threshold){
+               h_eta_combined->Fill(trig_l1_roi_eta);
+               break;
+            }
+         }
+      }
+   }
+
 
    return kTRUE;
 }

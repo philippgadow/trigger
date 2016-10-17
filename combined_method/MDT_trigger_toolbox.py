@@ -9,8 +9,8 @@ def plot_efficiency(h_cut, h_all):
 
 def calc_efficiency(h_cut, h_all):
     """calculate efficiency."""
-    x_min = h_cut.GetXaxis().FindBin(20.)
-    x_max = h_cut.GetXaxis().FindBin(100.)
+    x_min = h_cut.GetXaxis().FindBin(21)
+    x_max = h_cut.GetXaxis().FindBin(30.)
     nominator = h_cut.Integral(x_min, x_max)
     denominator = h_all.Integral(x_min, x_max)
     if denominator == 0.:
