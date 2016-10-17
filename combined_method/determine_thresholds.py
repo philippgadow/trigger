@@ -75,7 +75,7 @@ for b in eta_boundary:
                 if efficiency < 0:
                     second_loop = False
                     break
-                if efficiency >= 0.94:
+                if efficiency >= 0.945:
                     break
 
             new_range = int(pt_threshold*100)+50
@@ -105,7 +105,7 @@ for b in eta_boundary:
                 print pt_threshold, efficiency
                 if efficiency < 0:
                     break
-                if efficiency >= 0.94:
+                if efficiency >= 0.945:
                     break
             print b, p, c
             print pt_threshold, efficiency
